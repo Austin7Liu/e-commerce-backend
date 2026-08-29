@@ -3,9 +3,12 @@ package com.aicode.smartmall.product.service.impl;
 import com.aicode.smartmall.product.entity.Product;
 import com.aicode.smartmall.product.mapper.ProductMapper;
 import com.aicode.smartmall.product.service.ProductService;
+import com.aicode.smartmall.product.service.model.ProductPage;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -20,6 +23,25 @@ public class ProductServiceImpl implements ProductService {
     public Product getById(Long id) {
         validateId(id);
         return productMapper.selectById(id);
+    }
+
+    @Override
+    public ProductPage getPage(int page, int size) {
+        validatePage(page, size);
+
+        long total = productMapper.selectCount(null);
+        long totalPages = (total + size - 1) / size;
+        if (total == 0) {
+            return new ProductPage(List.of(), 0, page, size, 0);
+        }
+
+        long offset = (long) (page - 1) * size;
+        List<Product> products = productMapper.selectList(
+                Wrappers.<Product>lambdaQuery()
+                        .orderByDesc(Product::getId)
+                        .last("LIMIT " + size + " OFFSET " + offset)
+        );
+        return new ProductPage(products, total, page, size, totalPages);
     }
 
     @Override
@@ -97,6 +119,15 @@ public class ProductServiceImpl implements ProductService {
     private static void validateId(Long id) {
         if (id == null || id <= 0) {
             throw new IllegalArgumentException("Product id must be positive");
+        }
+    }
+
+    private static void validatePage(int page, int size) {
+        if (page < 1) {
+            throw new IllegalArgumentException("Page must be at least 1");
+        }
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("Page size must be between 1 and 100");
         }
     }
 

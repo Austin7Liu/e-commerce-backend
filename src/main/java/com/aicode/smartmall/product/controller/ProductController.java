@@ -1,10 +1,12 @@
 package com.aicode.smartmall.product.controller;
 
 import com.aicode.smartmall.product.dto.ProductCreateRequest;
+import com.aicode.smartmall.product.dto.ProductPageResponse;
 import com.aicode.smartmall.product.dto.ProductResponse;
 import com.aicode.smartmall.product.dto.ProductUpdateRequest;
 import com.aicode.smartmall.product.entity.Product;
 import com.aicode.smartmall.product.service.ProductService;
+import com.aicode.smartmall.product.service.model.ProductPage;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
@@ -36,6 +39,21 @@ public class ProductController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok(toResponse(product));
+    }
+
+    @GetMapping
+    public ResponseEntity<ProductPageResponse> getPage(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        ProductPage productPage = productService.getPage(page, size);
+        ProductPageResponse response = new ProductPageResponse(
+                productPage.products().stream().map(ProductController::toResponse).toList(),
+                productPage.total(),
+                productPage.page(),
+                productPage.size(),
+                productPage.totalPages()
+        );
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping

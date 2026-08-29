@@ -95,6 +95,31 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$.message").value("Product id must be positive"));
     }
 
+    @Test
+    void shouldReturnPagedProductList() throws Exception {
+        Product firstProduct = createProduct("First controller page product");
+        Product secondProduct = createProduct("Second controller page product");
+
+        mockMvc.perform(get("/api/products")
+                        .param("page", "1")
+                        .param("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(2))
+                .andExpect(jsonPath("$.total").isNumber())
+                .andExpect(jsonPath("$.totalPages").isNumber())
+                .andExpect(jsonPath("$.products.length()").value(2))
+                .andExpect(jsonPath("$.products[0].id").value(secondProduct.getId()))
+                .andExpect(jsonPath("$.products[1].id").value(firstProduct.getId()));
+    }
+
+    @Test
+    void shouldReturnBadRequestForInvalidPageParameters() throws Exception {
+        mockMvc.perform(get("/api/products").param("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Page size must be between 1 and 100"));
+    }
+
     private Product createProduct(String name) {
         Product product = new Product();
         product.setName(name);

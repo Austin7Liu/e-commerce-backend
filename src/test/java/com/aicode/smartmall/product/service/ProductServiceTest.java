@@ -1,6 +1,7 @@
 package com.aicode.smartmall.product.service;
 
 import com.aicode.smartmall.product.entity.Product;
+import com.aicode.smartmall.product.service.model.ProductPage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -72,5 +73,35 @@ class ProductServiceTest {
         invalidProduct.setStatus(0);
 
         assertThrows(IllegalArgumentException.class, () -> productService.create(invalidProduct));
+    }
+
+    @Test
+    void shouldReturnProductPageOrderedByIdDescending() {
+        Product firstProduct = createProduct("First page service product");
+        Product secondProduct = createProduct("Second page service product");
+
+        ProductPage productPage = productService.getPage(1, 2);
+
+        assertEquals(1, productPage.page());
+        assertEquals(2, productPage.size());
+        assertEquals(2, productPage.products().size());
+        assertTrue(productPage.total() >= 2);
+        assertEquals(secondProduct.getId(), productPage.products().get(0).getId());
+        assertEquals(firstProduct.getId(), productPage.products().get(1).getId());
+    }
+
+    @Test
+    void shouldRejectInvalidPageParameters() {
+        assertThrows(IllegalArgumentException.class, () -> productService.getPage(0, 20));
+        assertThrows(IllegalArgumentException.class, () -> productService.getPage(1, 101));
+    }
+
+    private Product createProduct(String name) {
+        Product product = new Product();
+        product.setName(name);
+        product.setPrice(new BigDecimal("49.90"));
+        product.setStock(5L);
+        product.setStatus(0);
+        return productService.create(product);
     }
 }
