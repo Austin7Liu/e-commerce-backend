@@ -1,4 +1,4 @@
-package com.aicode.smartmall.product.entity;
+package com.aicode.smartmall.category.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -8,30 +8,23 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
 @Setter
-@TableName("product")
-public class Product {
+@TableName("category")
+public class Category {
 
     @TableId(value = "id", type = IdType.AUTO)
     private Long id;
 
-    @TableField("category_id")
-    private Long categoryId;
+    @TableField("parent_id")
+    private Long parentId;
 
     private String name;
 
-    @TableField("main_image_url")
-    private String mainImageUrl;
-
-    private BigDecimal price;
-
-    private Long stock;
-
-    private String description;
+    @TableField("sort_order")
+    private Integer sortOrder;
 
     private Integer status;
 

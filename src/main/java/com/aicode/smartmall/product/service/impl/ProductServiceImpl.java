@@ -1,5 +1,7 @@
 package com.aicode.smartmall.product.service.impl;
 
+import com.aicode.smartmall.category.entity.Category;
+import com.aicode.smartmall.category.mapper.CategoryMapper;
 import com.aicode.smartmall.product.entity.Product;
 import com.aicode.smartmall.product.mapper.ProductMapper;
 import com.aicode.smartmall.product.service.ProductService;
@@ -9,14 +11,18 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
+import java.util.Set;
 
 @Service
 public class ProductServiceImpl implements ProductService {
 
     private final ProductMapper productMapper;
+    private final CategoryMapper categoryMapper;
 
-    public ProductServiceImpl(ProductMapper productMapper) {
+    public ProductServiceImpl(ProductMapper productMapper, CategoryMapper categoryMapper) {
         this.productMapper = productMapper;
+        this.categoryMapper = categoryMapper;
     }
 
     @Override
@@ -47,6 +53,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product create(Product product) {
         validateProductForCreate(product);
+        validateCategoryForProduct(product.getCategoryId(), product.getStatus());
 
         product.setId(null);
         product.setDeleted(null);
@@ -60,6 +67,16 @@ public class ProductServiceImpl implements ProductService {
     @Override
     public Product updateById(Product product) {
         validateProductForUpdate(product);
+
+        Product existing = productMapper.selectById(product.getId());
+        if (existing == null) {
+            return null;
+        }
+        Long effectiveCategoryId = product.getCategoryId() == null
+                ? existing.getCategoryId() : product.getCategoryId();
+        Integer effectiveStatus = product.getStatus() == null
+                ? existing.getStatus() : product.getStatus();
+        validateCategoryForProduct(effectiveCategoryId, effectiveStatus);
 
         product.setDeleted(null);
         product.setCreatedTime(null);
@@ -111,7 +128,8 @@ public class ProductServiceImpl implements ProductService {
                 && product.getPrice() == null
                 && product.getStock() == null
                 && product.getDescription() == null
-                && product.getStatus() == null) {
+                && product.getStatus() == null
+                && product.getCategoryId() == null) {
             throw new IllegalArgumentException("At least one product field must be provided for update");
         }
     }
@@ -171,6 +189,34 @@ public class ProductServiceImpl implements ProductService {
     private static void validateStatus(Integer status) {
         if (status == null || (status != 0 && status != 1)) {
             throw new IllegalArgumentException("Product status must be 0 or 1");
+        }
+    }
+
+    private void validateCategoryForProduct(Long categoryId, Integer productStatus) {
+        if (categoryId == null) {
+            if (productStatus != null && productStatus == 1) {
+                throw new IllegalArgumentException("Active product must have a category");
+            }
+            return;
+        }
+        if (categoryId <= 0) {
+            throw new IllegalArgumentException("Product category id must be positive");
+        }
+
+        Long currentId = categoryId;
+        Set<Long> visited = new HashSet<>();
+        while (currentId != null) {
+            if (!visited.add(currentId)) {
+                throw new IllegalArgumentException("Product category hierarchy contains a cycle");
+            }
+            Category category = categoryMapper.selectById(currentId);
+            if (category == null) {
+                throw new IllegalArgumentException("Product category does not exist");
+            }
+            if (productStatus != null && productStatus == 1 && category.getStatus() != 1) {
+                throw new IllegalArgumentException("Active product category and its ancestors must be enabled");
+            }
+            currentId = category.getParentId();
         }
     }
 }

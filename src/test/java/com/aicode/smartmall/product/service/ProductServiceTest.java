@@ -1,5 +1,7 @@
 package com.aicode.smartmall.product.service;
 
+import com.aicode.smartmall.category.entity.Category;
+import com.aicode.smartmall.category.service.CategoryService;
 import com.aicode.smartmall.product.entity.Product;
 import com.aicode.smartmall.product.service.model.ProductPage;
 import org.junit.jupiter.api.Test;
@@ -22,6 +24,9 @@ class ProductServiceTest {
 
     @Autowired
     private ProductService productService;
+
+    @Autowired
+    private CategoryService categoryService;
 
     @Test
     void shouldCreateQueryUpdateAndDeleteProduct() {
@@ -48,6 +53,7 @@ class ProductServiceTest {
         update.setName("Updated service test product");
         update.setPrice(new BigDecimal("209.90"));
         update.setStatus(1);
+        update.setCategoryId(createCategory("Service active product category").getId());
 
         Product updatedProduct = productService.updateById(update);
 
@@ -107,6 +113,7 @@ class ProductServiceTest {
         otherStatusProduct.setPrice(new BigDecimal("59.90"));
         otherStatusProduct.setStock(3L);
         otherStatusProduct.setStatus(1);
+        otherStatusProduct.setCategoryId(createCategory("Service filter category").getId());
         productService.create(otherStatusProduct);
 
         ProductPage productPage = productService.getPage(1, 20, 0, "  filtered Bluetooth  ");
@@ -133,5 +140,13 @@ class ProductServiceTest {
         product.setStock(5L);
         product.setStatus(0);
         return productService.create(product);
+    }
+
+    private Category createCategory(String name) {
+        Category category = new Category();
+        category.setName(name);
+        category.setSortOrder(0);
+        category.setStatus(1);
+        return categoryService.create(category);
     }
 }

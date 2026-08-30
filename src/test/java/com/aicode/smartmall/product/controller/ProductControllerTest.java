@@ -1,5 +1,7 @@
 package com.aicode.smartmall.product.controller;
 
+import com.aicode.smartmall.category.entity.Category;
+import com.aicode.smartmall.category.service.CategoryService;
 import com.aicode.smartmall.product.entity.Product;
 import com.aicode.smartmall.product.service.ProductService;
 import org.junit.jupiter.api.Test;
@@ -31,6 +33,9 @@ class ProductControllerTest {
     @Autowired
     private ProductService productService;
 
+    @Autowired
+    private CategoryService categoryService;
+
     @Test
     void shouldCreateProduct() throws Exception {
         mockMvc.perform(post("/api/products")
@@ -61,6 +66,7 @@ class ProductControllerTest {
     void shouldQueryUpdateAndDeleteProduct() throws Exception {
         Product product = createProduct("Controller operation test product");
         Long productId = product.getId();
+        Long categoryId = createCategory("Controller operation category").getId();
 
         mockMvc.perform(get("/api/products/{id}", productId))
                 .andExpect(status().isOk())
@@ -72,10 +78,11 @@ class ProductControllerTest {
                         .content("""
                                 {
                                   "name": "Updated controller test product",
+                                  "categoryId": %d,
                                   "price": 119.90,
                                   "status": 1
                                 }
-                                """))
+                                """.formatted(categoryId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Updated controller test product"))
                 .andExpect(jsonPath("$.price").value(119.90))
@@ -128,6 +135,7 @@ class ProductControllerTest {
         otherStatusProduct.setPrice(new BigDecimal("129.90"));
         otherStatusProduct.setStock(8L);
         otherStatusProduct.setStatus(1);
+        otherStatusProduct.setCategoryId(createCategory("Controller filter category").getId());
         productService.create(otherStatusProduct);
 
         mockMvc.perform(get("/api/products")
@@ -145,5 +153,13 @@ class ProductControllerTest {
         product.setStock(10L);
         product.setStatus(0);
         return productService.create(product);
+    }
+
+    private Category createCategory(String name) {
+        Category category = new Category();
+        category.setName(name);
+        category.setSortOrder(0);
+        category.setStatus(1);
+        return categoryService.create(category);
     }
 }

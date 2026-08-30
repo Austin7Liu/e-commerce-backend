@@ -91,6 +91,7 @@ public class ProductController {
 
     private static Product toProduct(ProductCreateRequest request) {
         Product product = new Product();
+        product.setCategoryId(request.categoryId());
         product.setName(request.name());
         product.setMainImageUrl(request.mainImageUrl());
         product.setPrice(request.price());
@@ -103,6 +104,7 @@ public class ProductController {
     private static Product toProduct(Long id, ProductUpdateRequest request) {
         Product product = new Product();
         product.setId(id);
+        product.setCategoryId(request.categoryId());
         product.setName(request.name());
         product.setMainImageUrl(request.mainImageUrl());
         product.setPrice(request.price());
@@ -115,6 +117,7 @@ public class ProductController {
     private static ProductResponse toResponse(Product product) {
         return new ProductResponse(
                 product.getId(),
+                product.getCategoryId(),
                 product.getName(),
                 product.getMainImageUrl(),
                 product.getPrice(),
