@@ -2,7 +2,7 @@
 
 ## 1. 项目定位
 
-SmartMall 是一个基于 Spring Boot 的电商后端项目。目前处于基础业务建设阶段，已经完成商品与商品分类两个核心模块，后续计划逐步加入用户、购物车、订单、库存以及智能购物助手等能力。
+SmartMall 是一个基于 Spring Boot 的电商后端项目。目前处于基础业务建设阶段，已经完成商品、商品分类和用户账号三个基础模块，后续计划逐步加入购物车、订单、库存以及智能购物助手等能力。
 
 本文档用于记录项目中已经实际落地的重要技术方案、业务规则和设计取舍，既作为后续开发依据，也用于面试时说明项目实现。文档只描述当前已经实现的能力；尚未实现的规划会明确标注，避免把设计设想描述成现有功能。
 
@@ -67,6 +67,13 @@ com.aicode.smartmall
 │   ├── mapper
 │   └── service
 ├── config
+├── user
+│   ├── controller
+│   ├── dto
+│   ├── entity
+│   ├── exception
+│   ├── mapper
+│   └── service
 └── product
     ├── controller
     ├── dto
@@ -351,7 +358,168 @@ MyBatis-Plus 在普通查询中自动加入未删除条件。Service 的子分�
 
 数据库外键无法替代这段逻辑，因为逻辑删除只是修改 `deleted` 字段，分类物理记录仍存在，外键不会阻止该操作。
 
-## 6. 索引设计
+## 6. User 用户模块
+
+### 6.1 当前业务边界
+
+User 第一版负责用户账号和基本资料管理，已经实现：
+
+- 创建用户。
+- 按 ID 查询用户。
+- 分页查询用户。
+- 按账号状态筛选。
+- 按用户名或昵称模糊查询。
+- 修改昵称、手机号、邮箱和账号状态。
+- 逻辑删除用户。
+- 用户名、手机号和邮箱唯一性校验。
+- 密码加盐哈希后存储。
+
+当前明确没有实现登录、JWT、Spring Security、角色和权限。现有用户接口用于基础业务建设和接口测试，在引入身份认证前不能直接作为开放的生产接口使用。
+
+### 6.2 为什么使用 `user_account` 表名
+
+数据库表使用 `user_account`，Java 实体使用 `User`。没有直接使用 `user`，是为了避免与 MySQL 系统用户概念混淆，使 SQL、日志和数据库管理界面中的含义更明确。
+
+核心字段如下：
+
+| 字段 | Java 类型 | 说明 |
+|---|---|---|
+| `id` | `Long` | 用户自增主键 |
+| `username` | `String` | 稳定的登录用户名，不允许普通更新 |
+| `password_hash` | `String` | 加盐后的密码哈希，禁止保存明文 |
+| `nickname` | `String` | 用户展示名称 |
+| `phone` | `String` | 可选手机号码 |
+| `email` | `String` | 可选电子邮箱，保存前转为小写 |
+| `status` | `Integer` | 0 表示禁用，1 表示正常 |
+| `deleted` | `Integer` | 逻辑删除标记 |
+| `created_time` | `LocalDateTime` | 创建时间 |
+| `updated_time` | `LocalDateTime` | 更新时间 |
+
+没有提前加入性别、生日、积分、余额、会员等级、角色、权限和最后登录时间等暂时没有业务用途的字段。
+
+### 6.3 密码为什么使用 PBKDF2
+
+即使项目暂时没有登录功能，也不能将创建用户时收到的密码明文保存。当前使用 JDK 自带的：
+
+```text
+PBKDF2WithHmacSHA256
+```
+
+每次哈希使用 `SecureRandom` 生成 16 字节随机盐，迭代 210000 次，生成 256 位结果，保存格式为：
+
+```text
+pbkdf2_sha256$210000$Base64盐值$Base64哈希值
+```
+
+采用这个方案的原因：
+
+- PBKDF2 是专门用于密码派生的慢哈希算法，能够提高暴力破解成本。
+- 每个用户使用不同盐值，相同密码也不会得到相同的数据库内容。
+- JDK 21 原生提供实现，不需要为了当前阶段引入 Spring Security 或额外密码库。
+- 格式中记录算法和迭代次数，未来可以逐步升级参数。
+
+密码只存在于 `UserCreateRequest`，Controller 将其单独传给 Service。Entity 只保存 `passwordHash`，所有 Response DTO 都排除密码和密码哈希字段。完成计算后，哈希组件还会清理内部使用的字符数组。
+
+当前密码长度限制为 8～64，不强制复杂的大小写和特殊字符组合。相比难以记忆的固定组合规则，足够长度、加盐慢哈希以及未来登录阶段的限流更有实际价值。
+
+### 6.4 唯一性和并发保障
+
+数据库包含三个唯一索引：
+
+```sql
+UNIQUE KEY uk_user_account_username (username)
+UNIQUE KEY uk_user_account_phone (phone)
+UNIQUE KEY uk_user_account_email (email)
+```
+
+Service 在写入前先查询重复值，以便返回具体的 `409 Conflict` 提示；数据库唯一索引作为最终保障，防止两个并发请求同时通过预检查后写入重复数据。
+
+因此完整策略是：
+
+```text
+Service 预检查，提供友好错误
+        ↓
+数据库唯一索引，保证最终一致性
+```
+
+手机号和邮箱允许为 `NULL`。MySQL 唯一索引允许存在多个 NULL，所以多个暂未填写联系方式的用户不会冲突。邮箱保存前会去除首尾空格并转换为小写。
+
+逻辑删除后仍保留用户名、手机号和邮箱的唯一占用，避免其他人重新注册旧用户标识并冒用历史身份。未来如果需要真正释放联系方式，应设计明确的账号注销和信息脱敏流程。
+
+### 6.5 用户接口和 DTO 隔离
+
+当前 API：
+
+| 方法 | 地址 | 说明 |
+|---|---|---|
+| POST | `/api/users` | 创建用户 |
+| GET | `/api/users/{id}` | 用户详情 |
+| GET | `/api/users` | 用户分页列表 |
+| PATCH | `/api/users/{id}` | 修改资料或状态 |
+| DELETE | `/api/users/{id}` | 逻辑删除用户 |
+
+创建请求包含 `username`、`password`、`nickname`、可选 `phone` 和可选 `email`。账号状态由 Service 固定初始化为正常，客户端不能在创建时控制 `id`、`passwordHash`、`status`、`deleted` 或时间字段。
+
+普通更新不允许修改用户名或密码。用户名被视为稳定的账号标识；密码修改将在登录安全功能建设时使用独立接口实现，避免把敏感操作混入普通资料更新。
+
+UserResponse 只返回必要的账号信息：
+
+```json
+{
+  "id": 1,
+  "username": "alice",
+  "nickname": "Alice",
+  "phone": null,
+  "email": "alice@example.com",
+  "status": 1,
+  "createdTime": "2026-08-30T18:30:00",
+  "updatedTime": "2026-08-30T18:30:00"
+}
+```
+
+### 6.6 用户分页动态查询
+
+查询参数：
+
+```text
+page      默认 1
+size      默认 20，范围 1～100
+status    可选，0 或 1
+keyword   可选，同时模糊匹配 username 和 nickname
+```
+
+示例：
+
+```http
+GET /api/users?page=1&size=20&status=1&keyword=alice
+```
+
+Service 使用 MyBatis-Plus `Page` 和 `LambdaQueryWrapper` 动态构造：
+
+```sql
+WHERE deleted = 0
+  AND status = ?
+  AND (username LIKE ? OR nickname LIKE ?)
+ORDER BY id DESC
+LIMIT ?, ?
+```
+
+`deleted = 0` 由 MyBatis-Plus 根据 `@TableLogic` 自动加入。名称使用前导百分号模糊查询，普通 B-Tree 索引无法有效优化，因此当前没有为 keyword 搜索增加无效索引。
+
+### 6.7 用户逻辑删除
+
+用户使用逻辑删除而不是物理删除。虽然当前还没有订单等关联表，但用户是长期业务身份，将来订单、购物车和审计数据都可能引用用户 ID，物理删除会破坏历史关系。
+
+逻辑删除后的用户：
+
+- 按 ID 查询返回不存在。
+- 不出现在分页列表中。
+- 唯一账号标识仍被保留。
+- 当前没有恢复接口。
+
+未来如果支持恢复，必须重新检查账号状态、联系方式冲突以及关联业务状态，不能只把 `deleted` 改回 0。
+
+## 7. 索引设计
 
 当前 Product 的主要访问方式是按主键查询、分页列表和按分类查询。Category 的主要访问方式是按主键查询以及按父分类加载直属子分类。
 
@@ -379,7 +547,7 @@ idx_product_category_list(category_id, deleted, status, id)
 
 名称查询当前使用 `%关键字%`。普通 B-Tree 索引不能有效优化前导百分号模糊查询，而且当前商品和分类数据量较小，因此没有为名称提前增加无效索引，也没有引入 Elasticsearch。
 
-## 7. HTTP 状态码约定
+## 8. HTTP 状态码约定
 
 | 状态码 | 使用场景 |
 |---|---|
@@ -390,7 +558,9 @@ idx_product_category_list(category_id, deleted, status, id)
 | 404 | 商品或分类不存在，或已被逻辑删除 |
 | 409 | 分类仍有子分类或关联商品，不能删除 |
 
-## 8. 测试策略
+User 模块还会在用户名、手机号或邮箱重复时返回 `409 Conflict`。
+
+## 9. 测试策略
 
 项目当前使用真实 Spring Boot 上下文和 MySQL 进行集成测试，并通过 `@Transactional` 在每个测试结束后回滚测试数据。
 
@@ -406,10 +576,14 @@ idx_product_category_list(category_id, deleted, status, id)
 - 有子分类或商品时拒绝删除分类。
 - 商品分类必填及上架分类启用校验。
 - Controller HTTP 状态码和响应结构。
+- User 字段映射、BaseMapper 操作和逻辑删除。
+- PBKDF2 密码哈希且 API 不泄露密码字段。
+- 用户名、手机号和邮箱唯一冲突。
+- 用户分页、状态筛选及用户名或昵称动态查询。
 
-截至分类分页功能完成时，完整测试共 26 个，全部通过。
+截至 User 基础模块完成时，完整测试共 37 个，全部通过。
 
-## 9. 当前设计边界
+## 10. 当前设计边界
 
 当前版本刻意保持简单，尚未实现：
 
@@ -419,12 +593,14 @@ idx_product_category_list(category_id, deleted, status, id)
 - 独立库存流水和库存扣减并发控制。
 - 全局统一异常响应结构。
 - 数据库版本迁移工具。
+- 用户登录、JWT、Spring Security、角色和权限。
+- 用户密码修改、找回密码、验证码和登录限流。
 
 另外，当前 PATCH 请求使用简单 Record DTO，无法区分“JSON 中没有提供某个可空字段”和“显式把该字段设置为 null”。如果后续需要主动清空主图、描述或把分类移动为根分类，应增加能够记录字段是否出现的更新模型，而不是直接依赖 null。
 
 分类删除目前采用事务完成检查和逻辑删除。在极高并发下，检查完成后仍可能出现新的子分类或商品绑定。当前阶段通过 Service 校验和数据库外键满足基本一致性；后续若出现真实并发管理场景，可再评估行锁或更严格的并发控制，不提前增加复杂度。
 
-## 10. 后续文档维护规则
+## 11. 后续文档维护规则
 
 以后每完成一个业务功能，应同步更新本文档，至少记录：
 
