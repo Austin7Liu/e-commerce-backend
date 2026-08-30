@@ -1,6 +1,7 @@
 package com.aicode.smartmall.product.controller;
 
 import com.aicode.smartmall.product.dto.ProductCreateRequest;
+import com.aicode.smartmall.product.dto.ProductListQueryRequest;
 import com.aicode.smartmall.product.dto.ProductPageResponse;
 import com.aicode.smartmall.product.dto.ProductResponse;
 import com.aicode.smartmall.product.dto.ProductUpdateRequest;
@@ -11,12 +12,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
@@ -42,10 +43,10 @@ public class ProductController {
     }
 
     @GetMapping
-    public ResponseEntity<ProductPageResponse> getPage(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        ProductPage productPage = productService.getPage(page, size);
+    public ResponseEntity<ProductPageResponse> getPage(@ModelAttribute ProductListQueryRequest request) {
+        int page = request.page() == null ? 1 : request.page();
+        int size = request.size() == null ? 20 : request.size();
+        ProductPage productPage = productService.getPage(page, size, request.status(), request.keyword());
         ProductPageResponse response = new ProductPageResponse(
                 productPage.products().stream().map(ProductController::toResponse).toList(),
                 productPage.total(),

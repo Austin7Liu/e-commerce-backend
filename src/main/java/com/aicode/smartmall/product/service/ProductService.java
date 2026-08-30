@@ -7,7 +7,7 @@ public interface ProductService {
 
     Product getById(Long id);
 
-    ProductPage getPage(int page, int size);
+    ProductPage getPage(int page, int size, Integer status, String keyword);
 
     Product create(Product product);
 

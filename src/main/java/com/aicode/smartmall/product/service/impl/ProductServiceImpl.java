@@ -4,11 +4,11 @@ import com.aicode.smartmall.product.entity.Product;
 import com.aicode.smartmall.product.mapper.ProductMapper;
 import com.aicode.smartmall.product.service.ProductService;
 import com.aicode.smartmall.product.service.model.ProductPage;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.List;
 
 @Service
 public class ProductServiceImpl implements ProductService {
@@ -26,22 +26,22 @@ public class ProductServiceImpl implements ProductService {
     }
 
     @Override
-    public ProductPage getPage(int page, int size) {
-        validatePage(page, size);
+    public ProductPage getPage(int page, int size, Integer status, String keyword) {
+        String normalizedKeyword = normalizeAndValidateQuery(page, size, status, keyword);
 
-        long total = productMapper.selectCount(null);
-        long totalPages = (total + size - 1) / size;
-        if (total == 0) {
-            return new ProductPage(List.of(), 0, page, size, 0);
-        }
+        LambdaQueryWrapper<Product> queryWrapper = new LambdaQueryWrapper<Product>()
+                .eq(status != null, Product::getStatus, status)
+                .like(normalizedKeyword != null, Product::getName, normalizedKeyword)
+                .orderByDesc(Product::getId);
 
-        long offset = (long) (page - 1) * size;
-        List<Product> products = productMapper.selectList(
-                Wrappers.<Product>lambdaQuery()
-                        .orderByDesc(Product::getId)
-                        .last("LIMIT " + size + " OFFSET " + offset)
+        Page<Product> result = productMapper.selectPage(new Page<>(page, size), queryWrapper);
+        return new ProductPage(
+                result.getRecords(),
+                result.getTotal(),
+                page,
+                size,
+                result.getPages()
         );
-        return new ProductPage(products, total, page, size, totalPages);
     }
 
     @Override
@@ -122,13 +122,26 @@ public class ProductServiceImpl implements ProductService {
         }
     }
 
-    private static void validatePage(int page, int size) {
+    private static String normalizeAndValidateQuery(
+            int page,
+            int size,
+            Integer status,
+            String keyword) {
         if (page < 1) {
             throw new IllegalArgumentException("Page must be at least 1");
         }
         if (size < 1 || size > 100) {
             throw new IllegalArgumentException("Page size must be between 1 and 100");
         }
+        if (status != null && status != 0 && status != 1) {
+            throw new IllegalArgumentException("Product status must be 0 or 1");
+        }
+
+        String normalizedKeyword = keyword == null ? null : keyword.trim();
+        if (normalizedKeyword != null && normalizedKeyword.length() > 100) {
+            throw new IllegalArgumentException("Product keyword must not exceed 100 characters");
+        }
+        return normalizedKeyword == null || normalizedKeyword.isEmpty() ? null : normalizedKeyword;
     }
 
     private static void validateName(String name) {

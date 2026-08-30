@@ -120,6 +120,24 @@ class ProductControllerTest {
                 .andExpect(jsonPath("$.message").value("Page size must be between 1 and 100"));
     }
 
+    @Test
+    void shouldFilterProductListByStatusAndKeyword() throws Exception {
+        Product matchingProduct = createProduct("Unique controller Bluetooth product");
+        Product otherStatusProduct = new Product();
+        otherStatusProduct.setName("Unique controller Bluetooth offline product");
+        otherStatusProduct.setPrice(new BigDecimal("129.90"));
+        otherStatusProduct.setStock(8L);
+        otherStatusProduct.setStatus(1);
+        productService.create(otherStatusProduct);
+
+        mockMvc.perform(get("/api/products")
+                        .param("status", "0")
+                        .param("keyword", "controller Bluetooth"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.products.length()").value(1))
+                .andExpect(jsonPath("$.products[0].id").value(matchingProduct.getId()));
+    }
+
     private Product createProduct(String name) {
         Product product = new Product();
         product.setName(name);

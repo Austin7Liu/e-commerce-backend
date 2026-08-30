@@ -80,7 +80,7 @@ class ProductServiceTest {
         Product firstProduct = createProduct("First page service product");
         Product secondProduct = createProduct("Second page service product");
 
-        ProductPage productPage = productService.getPage(1, 2);
+        ProductPage productPage = productService.getPage(1, 2, null, null);
 
         assertEquals(1, productPage.page());
         assertEquals(2, productPage.size());
@@ -92,8 +92,38 @@ class ProductServiceTest {
 
     @Test
     void shouldRejectInvalidPageParameters() {
-        assertThrows(IllegalArgumentException.class, () -> productService.getPage(0, 20));
-        assertThrows(IllegalArgumentException.class, () -> productService.getPage(1, 101));
+        assertThrows(IllegalArgumentException.class, () -> productService.getPage(0, 20, null, null));
+        assertThrows(IllegalArgumentException.class, () -> productService.getPage(1, 101, null, null));
+        assertThrows(IllegalArgumentException.class, () -> productService.getPage(1, 20, 2, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> productService.getPage(1, 20, null, "a".repeat(101)));
+    }
+
+    @Test
+    void shouldFilterProductPageByStatusAndName() {
+        Product matchingProduct = createProduct("Unique filtered Bluetooth product");
+        Product otherStatusProduct = new Product();
+        otherStatusProduct.setName("Unique filtered Bluetooth offline product");
+        otherStatusProduct.setPrice(new BigDecimal("59.90"));
+        otherStatusProduct.setStock(3L);
+        otherStatusProduct.setStatus(1);
+        productService.create(otherStatusProduct);
+
+        ProductPage productPage = productService.getPage(1, 20, 0, "  filtered Bluetooth  ");
+
+        assertEquals(1, productPage.products().size());
+        assertEquals(matchingProduct.getId(), productPage.products().get(0).getId());
+    }
+
+    @Test
+    void shouldExcludeLogicallyDeletedProductsFromPage() {
+        Product product = createProduct("Unique logically deleted list product");
+        assertTrue(productService.deleteById(product.getId()));
+
+        ProductPage productPage = productService.getPage(1, 20, null, "logically deleted list");
+
+        assertTrue(productPage.products().isEmpty());
+        assertEquals(0, productPage.total());
     }
 
     private Product createProduct(String name) {
