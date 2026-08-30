@@ -38,10 +38,12 @@ class ProductControllerTest {
 
     @Test
     void shouldCreateProduct() throws Exception {
+        Long categoryId = createCategory("Controller create category").getId();
         mockMvc.perform(post("/api/products")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
+                                  "categoryId": %d,
                                   "name": "Controller create test product",
                                   "mainImageUrl": null,
                                   "price": 89.90,
@@ -49,7 +51,7 @@ class ProductControllerTest {
                                   "description": "Created through the product API",
                                   "status": 0
                                 }
-                                """))
+                                """.formatted(categoryId)))
                 .andExpect(status().isCreated())
                 .andExpect(header().exists("Location"))
                 .andExpect(jsonPath("$.id").isNumber())
@@ -148,6 +150,7 @@ class ProductControllerTest {
 
     private Product createProduct(String name) {
         Product product = new Product();
+        product.setCategoryId(createCategory(name + " category").getId());
         product.setName(name);
         product.setPrice(new BigDecimal("99.90"));
         product.setStock(10L);

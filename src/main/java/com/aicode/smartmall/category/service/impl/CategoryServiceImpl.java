@@ -4,9 +4,11 @@ import com.aicode.smartmall.category.entity.Category;
 import com.aicode.smartmall.category.exception.CategoryInUseException;
 import com.aicode.smartmall.category.mapper.CategoryMapper;
 import com.aicode.smartmall.category.service.CategoryService;
+import com.aicode.smartmall.category.service.model.CategoryPage;
 import com.aicode.smartmall.product.entity.Product;
 import com.aicode.smartmall.product.mapper.ProductMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -45,6 +47,28 @@ public class CategoryServiceImpl implements CategoryService {
                 .orderByAsc(Category::getSortOrder)
                 .orderByAsc(Category::getId);
         return categoryMapper.selectList(query);
+    }
+
+    @Override
+    public CategoryPage getPage(int page, int size, Long parentId, Integer status, String name) {
+        String normalizedName = normalizeAndValidatePageQuery(page, size, parentId, status, name);
+
+        LambdaQueryWrapper<Category> query = new LambdaQueryWrapper<Category>()
+                .isNull(parentId == null, Category::getParentId)
+                .eq(parentId != null, Category::getParentId, parentId)
+                .eq(status != null, Category::getStatus, status)
+                .like(normalizedName != null, Category::getName, normalizedName)
+                .orderByAsc(Category::getSortOrder)
+                .orderByAsc(Category::getId);
+
+        Page<Category> result = categoryMapper.selectPage(new Page<>(page, size), query);
+        return new CategoryPage(
+                result.getRecords(),
+                result.getTotal(),
+                page,
+                size,
+                result.getPages()
+        );
     }
 
     @Override
@@ -183,5 +207,29 @@ public class CategoryServiceImpl implements CategoryService {
         if (status != null) {
             validateStatus(status);
         }
+    }
+
+    private static String normalizeAndValidatePageQuery(
+            int page,
+            int size,
+            Long parentId,
+            Integer status,
+            String name) {
+        if (page < 1) {
+            throw new IllegalArgumentException("Page must be at least 1");
+        }
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException("Page size must be between 1 and 100");
+        }
+        if (parentId != null) {
+            validateId(parentId);
+        }
+        validateOptionalStatus(status);
+
+        String normalizedName = name == null ? null : name.trim();
+        if (normalizedName != null && normalizedName.length() > 100) {
+            throw new IllegalArgumentException("Category name query must not exceed 100 characters");
+        }
+        return normalizedName == null || normalizedName.isEmpty() ? null : normalizedName;
     }
 }

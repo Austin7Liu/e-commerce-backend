@@ -80,6 +80,34 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$.productCount").value(0));
     }
 
+    @Test
+    void shouldReturnCategoryPageFilteredByName() throws Exception {
+        Category root = createCategory(null, "Controller page root");
+        Category matching = createCategory(root.getId(), "Controller portable audio");
+        createCategory(root.getId(), "Controller smart wearable");
+
+        mockMvc.perform(get("/api/categories/page")
+                        .param("page", "1")
+                        .param("size", "10")
+                        .param("parentId", root.getId().toString())
+                        .param("status", "1")
+                        .param("name", "portable audio"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.categories.length()").value(1))
+                .andExpect(jsonPath("$.categories[0].id").value(matching.getId()));
+    }
+
+    @Test
+    void shouldReturnBadRequestForInvalidCategoryPageQuery() throws Exception {
+        mockMvc.perform(get("/api/categories/page").param("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Page size must be between 1 and 100"));
+    }
+
     private Category createCategory(Long parentId, String name) {
         Category category = new Category();
         category.setParentId(parentId);

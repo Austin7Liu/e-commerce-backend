@@ -194,10 +194,7 @@ public class ProductServiceImpl implements ProductService {
 
     private void validateCategoryForProduct(Long categoryId, Integer productStatus) {
         if (categoryId == null) {
-            if (productStatus != null && productStatus == 1) {
-                throw new IllegalArgumentException("Active product must have a category");
-            }
-            return;
+            throw new IllegalArgumentException("Product must have a category");
         }
         if (categoryId <= 0) {
             throw new IllegalArgumentException("Product category id must be positive");

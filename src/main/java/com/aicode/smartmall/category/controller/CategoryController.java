@@ -1,15 +1,19 @@
 package com.aicode.smartmall.category.controller;
 
 import com.aicode.smartmall.category.dto.CategoryCreateRequest;
+import com.aicode.smartmall.category.dto.CategoryListQueryRequest;
+import com.aicode.smartmall.category.dto.CategoryPageResponse;
 import com.aicode.smartmall.category.dto.CategoryResponse;
 import com.aicode.smartmall.category.dto.CategoryUpdateRequest;
 import com.aicode.smartmall.category.entity.Category;
 import com.aicode.smartmall.category.exception.CategoryInUseException;
 import com.aicode.smartmall.category.service.CategoryService;
+import com.aicode.smartmall.category.service.model.CategoryPage;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +51,27 @@ public class CategoryController {
         return categoryService.getChildren(parentId, status).stream()
                 .map(CategoryController::toResponse)
                 .toList();
+    }
+
+    @GetMapping("/page")
+    public ResponseEntity<CategoryPageResponse> getPage(@ModelAttribute CategoryListQueryRequest request) {
+        int page = request.page() == null ? 1 : request.page();
+        int size = request.size() == null ? 20 : request.size();
+        CategoryPage categoryPage = categoryService.getPage(
+                page,
+                size,
+                request.parentId(),
+                request.status(),
+                request.name()
+        );
+        CategoryPageResponse response = new CategoryPageResponse(
+                categoryPage.categories().stream().map(CategoryController::toResponse).toList(),
+                categoryPage.total(),
+                categoryPage.page(),
+                categoryPage.size(),
+                categoryPage.totalPages()
+        );
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping

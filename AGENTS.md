@@ -82,5 +82,5 @@ For non-trivial tasks, follow this workflow:
     - why it was changed
     - what tests or verification were performed
     - whether any risks or unresolved issues remain
-
+9. Complete the SmallMall.md located in the "docs" folder under the root directory.
 Do not make large or unrelated changes without explaining them first.

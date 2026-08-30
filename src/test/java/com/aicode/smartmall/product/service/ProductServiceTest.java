@@ -31,6 +31,7 @@ class ProductServiceTest {
     @Test
     void shouldCreateQueryUpdateAndDeleteProduct() {
         Product product = new Product();
+        product.setCategoryId(createCategory("Service operation category").getId());
         product.setName("Service test product");
         product.setPrice(new BigDecimal("199.90"));
         product.setStock(20L);
@@ -73,6 +74,7 @@ class ProductServiceTest {
         assertThrows(IllegalArgumentException.class, () -> productService.getById(0L));
 
         Product invalidProduct = new Product();
+        invalidProduct.setCategoryId(createCategory("Service invalid input category").getId());
         invalidProduct.setName(" ");
         invalidProduct.setPrice(new BigDecimal("10.00"));
         invalidProduct.setStock(1L);
@@ -135,6 +137,7 @@ class ProductServiceTest {
 
     private Product createProduct(String name) {
         Product product = new Product();
+        product.setCategoryId(createCategory(name + " category").getId());
         product.setName(name);
         product.setPrice(new BigDecimal("49.90"));
         product.setStock(5L);

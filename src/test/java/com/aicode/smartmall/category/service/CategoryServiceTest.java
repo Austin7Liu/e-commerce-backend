@@ -2,6 +2,7 @@ package com.aicode.smartmall.category.service;
 
 import com.aicode.smartmall.category.entity.Category;
 import com.aicode.smartmall.category.exception.CategoryInUseException;
+import com.aicode.smartmall.category.service.model.CategoryPage;
 import com.aicode.smartmall.product.entity.Product;
 import com.aicode.smartmall.product.service.ProductService;
 import org.junit.jupiter.api.Test;
@@ -65,6 +66,35 @@ class CategoryServiceTest {
     }
 
     @Test
+    void shouldPageDirectChildrenAndFilterByName() {
+        Category root = createCategory(null, "Category page root", 0, 1);
+        Category first = createCategory(root.getId(), "Portable audio category", 10, 1);
+        createCategory(root.getId(), "Smart wearable category", 20, 1);
+        createCategory(root.getId(), "Disabled audio category", 5, 0);
+
+        CategoryPage page = categoryService.getPage(1, 10, root.getId(), 1, "  audio  ");
+
+        assertEquals(1, page.categories().size());
+        assertEquals(first.getId(), page.categories().getFirst().getId());
+        assertEquals(1, page.total());
+        assertEquals(1, page.page());
+        assertEquals(10, page.size());
+        assertEquals(1, page.totalPages());
+    }
+
+    @Test
+    void shouldRejectInvalidCategoryPageQuery() {
+        assertThrows(IllegalArgumentException.class,
+                () -> categoryService.getPage(0, 20, null, null, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> categoryService.getPage(1, 101, null, null, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> categoryService.getPage(1, 20, null, 2, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> categoryService.getPage(1, 20, null, null, "a".repeat(101)));
+    }
+
+    @Test
     void shouldRejectParentCycle() {
         Category root = createCategory(null, "Category cycle root", 0, 1);
         Category child = createCategory(root.getId(), "Category cycle child", 0, 1);
@@ -109,14 +139,15 @@ class CategoryServiceTest {
 
     @Test
     void shouldValidateProductCategoryWhenPublishing() {
-        Product noCategory = product("Product without category", null, 1);
+        Product noCategory = product("Product without category", null, 0);
         assertThrows(IllegalArgumentException.class, () -> productService.create(noCategory));
 
         Category disabled = createCategory(null, "Disabled product category", 0, 0);
         Product disabledCategoryProduct = product("Disabled category product", disabled.getId(), 1);
         assertThrows(IllegalArgumentException.class, () -> productService.create(disabledCategoryProduct));
 
-        Product draft = product("Unclassified draft product", null, 0);
+        Category enabled = createCategory(null, "Enabled draft category", 0, 1);
+        Product draft = product("Classified draft product", enabled.getId(), 0);
         assertNotNull(productService.create(draft));
     }
 
